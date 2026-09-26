@@ -83,6 +83,53 @@
             margin-bottom: 20px;
             text-align: center;
         }
+        /* 折りたたみ（エクスパンド）スタイルのデザイン */
+        .wrong-words-card {
+            margin-top: 20px;
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-top: 4px solid #c62828;
+            overflow: hidden;
+        }
+        .wrong-words-details summary {
+            padding: 16px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #c62828;
+            cursor: pointer;
+            user-select: none;
+            outline: none;
+        }
+        .wrong-words-details summary:hover {
+            background-color: #fff5f5;
+        }
+        .wrong-words-content {
+            padding: 0 20px 20px 20px;
+            border-top: 1px solid #eee;
+        }
+        .wrong-words-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .wrong-words-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .wrong-words-item:last-child {
+            border-bottom: none;
+        }
+        .wrong-word-name {
+            font-weight: bold;
+            color: #0066cc;
+        }
+        .wrong-word-meaning {
+            color: #555;
+        }
     </style>
 </head>
 <body>
@@ -91,12 +138,23 @@
         <button class="btn primary-btn" onclick="startQuiz()">スタート (5問)</button>
     </div>
 
+    <!-- 間違えた単語表示エリア（デフォルトで折りたたみ） -->
+    <div class="wrong-words-card" id="wrong-words-container" style="display: none;">
+        <details class="wrong-words-details" id="wrong-words-details">
+            <summary id="wrong-words-summary">❌ 間違えた単語 (0件)</summary>
+            <div class="wrong-words-content">
+                <ul class="wrong-words-list" id="wrong-words-list"></ul>
+            </div>
+        </details>
+    </div>
+
     <script>
         const TOTAL_QUESTIONS = 5;
         let words = [];
         let currentIndex = 0;
         let score = 0;
-        let currentChoices = []; // 現在の問題の選択肢順を保持
+        let currentChoices = []; 
+        let wrongWordsMap = new Map(); // 重複を防ぐためのMap（単語 -> 正しい意味）
 
         async function loadTSV() {
             try {
@@ -155,9 +213,13 @@
 
         function checkAnswer(selected, correct) {
             const isCorrect = selected === correct;
-            if (isCorrect) score++;
-
             const current = words[currentIndex];
+
+            if (isCorrect) {
+                score++;
+            } else {
+                addWrongWord(current.word, current.correct);
+            }
 
             let html = `<p style="text-align:right; color:#666;">第 ${currentIndex + 1} / ${TOTAL_QUESTIONS} 問</p>`;
             html += `<div class="word">${escapeHtml(current.word)}</div>`;
@@ -174,6 +236,40 @@
             html += `<button class="btn primary-btn" onclick="nextQuestion()">新しい問題をやる</button>`;
 
             document.getElementById('app').innerHTML = html;
+        }
+
+        function addWrongWord(word, correct) {
+            if (!wrongWordsMap.has(word)) {
+                wrongWordsMap.set(word, correct);
+                renderWrongWords();
+            }
+        }
+
+        function renderWrongWords() {
+            const container = document.getElementById('wrong-words-container');
+            const summary = document.getElementById('wrong-words-summary');
+            const list = document.getElementById('wrong-words-list');
+            const details = document.getElementById('wrong-words-details');
+            
+            if (wrongWordsMap.size === 0) {
+                container.style.display = 'none';
+                return;
+            }
+
+            container.style.display = 'block';
+            // 自動で開かないようopen属性を解除して閉じる
+            details.removeAttribute('open');
+
+            summary.textContent = `❌ 間違えた単語 (${wrongWordsMap.size}件)`;
+
+            let html = '';
+            wrongWordsMap.forEach((meaning, word) => {
+                html += `<li class="wrong-words-item">`;
+                html += `<span class="wrong-word-name">${escapeHtml(word)}</span>`;
+                html += `<span class="wrong-word-meaning">${escapeHtml(meaning)}</span>`;
+                html += `</li>`;
+            });
+            list.innerHTML = html;
         }
 
         function nextQuestion() {
