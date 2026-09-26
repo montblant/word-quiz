@@ -60,6 +60,15 @@
         .secondary-btn:active {
             background-color: #5a6268;
         }
+        .danger-btn {
+            background-color: #c62828;
+            color: white;
+            border: none;
+            font-weight: bold;
+        }
+        .danger-btn:active {
+            background-color: #9a0007;
+        }
         .result-title {
             text-align: center;
             color: #2e7d32;
@@ -83,7 +92,6 @@
             margin-bottom: 20px;
             text-align: center;
         }
-        /* 折りたたみ（エクスパンド）スタイルのデザイン */
         .wrong-words-card {
             margin-top: 20px;
             background: #ffffff;
@@ -138,7 +146,6 @@
         <button class="btn primary-btn" onclick="startQuiz()">スタート (5問)</button>
     </div>
 
-    <!-- 間違えた単語表示エリア（デフォルトで折りたたみ） -->
     <div class="wrong-words-card" id="wrong-words-container" style="display: none;">
         <details class="wrong-words-details" id="wrong-words-details">
             <summary id="wrong-words-summary">❌ 間違えた単語 (0件)</summary>
@@ -150,7 +157,8 @@
 
     <script>
         const TOTAL_QUESTIONS = 5;
-        let words = [];
+        let allWords = [];       // 元の全単語データ
+        let currentQuizWords = []; // 今回のクイズで使用する単語リスト
         let currentIndex = 0;
         let score = 0;
         let currentChoices = []; 
@@ -160,7 +168,7 @@
             try {
                 const response = await fetch('words.tsv');
                 const text = await response.text();
-                words = text.trim().split('\n').map(line => {
+                allWords = text.trim().split('\n').map(line => {
                     const parts = line.split('\t');
                     return {
                         word: parts[0]?.trim(),
@@ -174,24 +182,39 @@
         }
 
         async function startQuiz() {
-            await loadTSV();
-            if (words.length === 0) {
+            if (allWords.length === 0) {
+                await loadTSV();
+            }
+            if (allWords.length === 0) {
                 alert('問題データが見つからないか、フォーマットが不正です。');
                 return;
             }
-            words.sort(() => Math.random() - 0.5);
+            // 全データからランダムにセット
+            currentQuizWords = [...allWords].sort(() => Math.random() - 0.5);
+            currentIndex = 0;
+            score = 0;
+            prepareQuestion();
+        }
+
+        function startWrongWordsQuiz() {
+            if (wrongWordsMap.size === 0) return;
+
+            // 間違えた単語だけを抽出
+            currentQuizWords = allWords.filter(w => wrongWordsMap.has(w.word));
+            currentQuizWords.sort(() => Math.random() - 0.5);
             currentIndex = 0;
             score = 0;
             prepareQuestion();
         }
 
         function prepareQuestion() {
-            if (currentIndex >= TOTAL_QUESTIONS || currentIndex >= words.length) {
+            const total = Math.min(TOTAL_QUESTIONS, currentQuizWords.length);
+            if (currentIndex >= total) {
                 showResult();
                 return;
             }
 
-            const current = words[currentIndex];
+            const current = currentQuizWords[currentIndex];
             currentChoices = [current.correct, ...current.dummies];
             currentChoices.sort(() => Math.random() - 0.5);
 
@@ -199,9 +222,10 @@
         }
 
         function showQuestion() {
-            const current = words[currentIndex];
+            const current = currentQuizWords[currentIndex];
+            const total = Math.min(TOTAL_QUESTIONS, currentQuizWords.length);
 
-            let html = `<p style="text-align:right; color:#666;">第 ${currentIndex + 1} / ${TOTAL_QUESTIONS} 問</p>`;
+            let html = `<p style="text-align:right; color:#666;">第 ${currentIndex + 1} / ${total} 問</p>`;
             html += `<div class="word">${escapeHtml(current.word)}</div>`;
             
             currentChoices.forEach(choice => {
@@ -213,7 +237,8 @@
 
         function checkAnswer(selected, correct) {
             const isCorrect = selected === correct;
-            const current = words[currentIndex];
+            const current = currentQuizWords[currentIndex];
+            const total = Math.min(TOTAL_QUESTIONS, currentQuizWords.length);
 
             if (isCorrect) {
                 score++;
@@ -221,7 +246,7 @@
                 addWrongWord(current.word, current.correct);
             }
 
-            let html = `<p style="text-align:right; color:#666;">第 ${currentIndex + 1} / ${TOTAL_QUESTIONS} 問</p>`;
+            let html = `<p style="text-align:right; color:#666;">第 ${currentIndex + 1} / ${total} 問</p>`;
             html += `<div class="word">${escapeHtml(current.word)}</div>`;
             
             if (isCorrect) {
@@ -257,7 +282,6 @@
             }
 
             container.style.display = 'block';
-            // 自動で開かないようopen属性を解除して閉じる
             details.removeAttribute('open');
 
             summary.textContent = `❌ 間違えた単語 (${wrongWordsMap.size}件)`;
@@ -278,19 +302,24 @@
         }
 
         function showResult() {
-            const total = Math.min(TOTAL_QUESTIONS, words.length);
+            const total = Math.min(TOTAL_QUESTIONS, currentQuizWords.length);
             const percentage = Math.round((score / total) * 100);
             
             let html = `<h2 style="text-align:center;">結果発表</h2>`;
-            html += `<p style="text-align:center; font-size:20px;">初回の正解率: <strong>${score} / ${total} (${percentage}%)</strong></p>`;
+            html += `<p style="text-align:center; font-size:20px;">正解率: <strong>${score} / ${total} (${percentage}%)</strong></p>`;
             
             if (percentage === 100) {
-                html += `<h3 class="result-title">🎉 素晴らしい！全問正解です！大変よくできました！ 🎉</h3>`;
+                html += `<h3 class="result-title">🎉 素晴らしい！全問正解です！ 🎉</h3>`;
             } else {
                 html += `<p style="text-align:center;">次回は全問正解を目指しましょう！</p>`;
             }
             
-            html += `<button class="btn primary-btn" onclick="startQuiz()">もう一度最初から挑戦する</button>`;
+            // 間違えた単語がある場合のみ「間違えた問題だけで再挑戦」ボタンを表示
+            if (wrongWordsMap.size > 0) {
+                html += `<button class="btn danger-btn" onclick="startWrongWordsQuiz()">❌ 間違えた問題だけで再挑戦 (${wrongWordsMap.size}問)</button>`;
+            }
+
+            html += `<button class="btn primary-btn" onclick="startQuiz()">最初から挑戦する (全体から5問)</button>`;
             
             document.getElementById('app').innerHTML = html;
         }
