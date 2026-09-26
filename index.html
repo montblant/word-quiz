@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>英単語クイズ</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            padding: 20px;
+            max-width: 500px;
+            margin: 0 auto;
+            background-color: #f9f9f9;
+            color: #333;
+        }
+        .card {
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .word {
+            font-size: 28px;
+            font-weight: bold;
+            color: #0066cc;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 14px;
+            margin: 10px 0;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background-color: #fff;
+            cursor: pointer;
+            box-sizing: border-box;
+            transition: background 0.2s;
+        }
+        .btn:active {
+            background-color: #e0e0e0;
+        }
+        .primary-btn {
+            background-color: #0066cc;
+            color: white;
+            border: none;
+            font-weight: bold;
+        }
+        .primary-btn:active {
+            background-color: #004c99;
+        }
+        .result-title {
+            text-align: center;
+            color: #2e7d32;
+        }
+    </style>
+</head>
+<body>
+    <div class="card" id="app">
+        <h1 style="text-align: center;">英単語クイズ</h1>
+        <button class="btn primary-btn" onclick="startQuiz()">スタート (5問)</button>
+    </div>
+
+    <script>
+        const TOTAL_QUESTIONS = 5;
+        let words = [];
+        let currentIndex = 0;
+        let score = 0;
+
+        async function loadTSV() {
+            try {
+                const response = await fetch('words.tsv');
+                const text = await response.text();
+                words = text.trim().split('\n').map(line => {
+                    const parts = line.split('\t');
+                    return {
+                        word: parts[0]?.trim(),
+                        correct: parts[1]?.trim(),
+                        dummies: parts.slice(2, 5).map(d => d?.trim())
+                    };
+                }).filter(w => w.word && w.correct && w.dummies.length === 3);
+            } catch (e) {
+                alert('words.tsv の読み込みに失敗しました。');
+            }
+        }
+
+        async function startQuiz() {
+            await loadTSV();
+            if (words.length === 0) {
+                alert('問題データが見つからないか、フォーマットが不正です。');
+                return;
+            }
+            words.sort(() => Math.random() - 0.5);
+            currentIndex = 0;
+            score = 0;
+            showQuestion();
+        }
+
+        function showQuestion() {
+            if (currentIndex >= TOTAL_QUESTIONS || currentIndex >= words.length) {
+                showResult();
+                return;
+            }
+
+            const current = words[currentIndex];
+            let choices = [current.correct, ...current.dummies];
+            choices.sort(() => Math.random() - 0.5);
+
+            let html = `<p style="text-align:right; color:#666;">第 ${currentIndex + 1} / ${TOTAL_QUESTIONS} 問</p>`;
+            html += `<div class="word">${escapeHtml(current.word)}</div>`;
+            
+            choices.forEach(choice => {
+                html += `<button class="btn" onclick="checkAnswer('${escapeJs(choice)}', '${escapeJs(current.correct)}')">${escapeHtml(choice)}</button>`;
+            });
+
+            document.getElementById('app').innerHTML = html;
+        }
+
+        function checkAnswer(selected, correct) {
+            if (selected === correct) score++;
+            currentIndex++;
+            showQuestion();
+        }
+
+        function showResult() {
+            const total = Math.min(TOTAL_QUESTIONS, words.length);
+            const percentage = Math.round((score / total) * 100);
+            
+            let html = `<h2 style="text-align:center;">結果発表</h2>`;
+            html += `<p style="text-align:center; font-size:20px;">正解率: <strong>${score} / ${total} (${percentage}%)</strong></p>`;
+            
+            if (percentage === 100) {
+                html += `<h3 class="result-title">🎉 素晴らしい！全問正解です！大変よくできました！ 🎉</h3>`;
+            } else {
+                html += `<p style="text-align:center;">次回は全問正解を目指しましょう！</p>`;
+            }
+            
+            html += `<button class="btn primary-btn" onclick="startQuiz()">もう一度挑戦する</button>`;
+            
+            document.getElementById('app').innerHTML = html;
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function escapeJs(str) {
+            return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        }
+    </script>
+</body>
+</html>
