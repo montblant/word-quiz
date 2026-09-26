@@ -51,9 +51,37 @@
         .primary-btn:active {
             background-color: #004c99;
         }
+        .secondary-btn {
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            font-weight: bold;
+        }
+        .secondary-btn:active {
+            background-color: #5a6268;
+        }
         .result-title {
             text-align: center;
             color: #2e7d32;
+        }
+        .feedback {
+            text-align: center;
+            font-size: 20px;
+            font-weight: bold;
+            margin: 15px 0;
+        }
+        .correct {
+            color: #2e7d32;
+        }
+        .incorrect {
+            color: #c62828;
+        }
+        .answer-detail {
+            background: #f0f4f8;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
         }
     </style>
 </head>
@@ -68,6 +96,7 @@
         let words = [];
         let currentIndex = 0;
         let score = 0;
+        let currentChoices = []; // 現在の問題の選択肢順を保持
 
         async function loadTSV() {
             try {
@@ -95,23 +124,29 @@
             words.sort(() => Math.random() - 0.5);
             currentIndex = 0;
             score = 0;
-            showQuestion();
+            prepareQuestion();
         }
 
-        function showQuestion() {
+        function prepareQuestion() {
             if (currentIndex >= TOTAL_QUESTIONS || currentIndex >= words.length) {
                 showResult();
                 return;
             }
 
             const current = words[currentIndex];
-            let choices = [current.correct, ...current.dummies];
-            choices.sort(() => Math.random() - 0.5);
+            currentChoices = [current.correct, ...current.dummies];
+            currentChoices.sort(() => Math.random() - 0.5);
+
+            showQuestion();
+        }
+
+        function showQuestion() {
+            const current = words[currentIndex];
 
             let html = `<p style="text-align:right; color:#666;">第 ${currentIndex + 1} / ${TOTAL_QUESTIONS} 問</p>`;
             html += `<div class="word">${escapeHtml(current.word)}</div>`;
             
-            choices.forEach(choice => {
+            currentChoices.forEach(choice => {
                 html += `<button class="btn" onclick="checkAnswer('${escapeJs(choice)}', '${escapeJs(current.correct)}')">${escapeHtml(choice)}</button>`;
             });
 
@@ -119,9 +154,31 @@
         }
 
         function checkAnswer(selected, correct) {
-            if (selected === correct) score++;
+            const isCorrect = selected === correct;
+            if (isCorrect) score++;
+
+            const current = words[currentIndex];
+
+            let html = `<p style="text-align:right; color:#666;">第 ${currentIndex + 1} / ${TOTAL_QUESTIONS} 問</p>`;
+            html += `<div class="word">${escapeHtml(current.word)}</div>`;
+            
+            if (isCorrect) {
+                html += `<div class="feedback correct">⭕ 正解！</div>`;
+            } else {
+                html += `<div class="feedback incorrect">❌ 不正解...</div>`;
+            }
+
+            html += `<div class="answer-detail">正解: <strong>${escapeHtml(correct)}</strong></div>`;
+
+            html += `<button class="btn secondary-btn" onclick="showQuestion()">同じ問題をもう一度やる</button>`;
+            html += `<button class="btn primary-btn" onclick="nextQuestion()">新しい問題をやる</button>`;
+
+            document.getElementById('app').innerHTML = html;
+        }
+
+        function nextQuestion() {
             currentIndex++;
-            showQuestion();
+            prepareQuestion();
         }
 
         function showResult() {
@@ -129,7 +186,7 @@
             const percentage = Math.round((score / total) * 100);
             
             let html = `<h2 style="text-align:center;">結果発表</h2>`;
-            html += `<p style="text-align:center; font-size:20px;">正解率: <strong>${score} / ${total} (${percentage}%)</strong></p>`;
+            html += `<p style="text-align:center; font-size:20px;">初回の正解率: <strong>${score} / ${total} (${percentage}%)</strong></p>`;
             
             if (percentage === 100) {
                 html += `<h3 class="result-title">🎉 素晴らしい！全問正解です！大変よくできました！ 🎉</h3>`;
@@ -137,7 +194,7 @@
                 html += `<p style="text-align:center;">次回は全問正解を目指しましょう！</p>`;
             }
             
-            html += `<button class="btn primary-btn" onclick="startQuiz()">もう一度挑戦する</button>`;
+            html += `<button class="btn primary-btn" onclick="startQuiz()">もう一度最初から挑戦する</button>`;
             
             document.getElementById('app').innerHTML = html;
         }
