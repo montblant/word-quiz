@@ -20,11 +20,36 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
         .word {
-            font-size: 28px;
+            font-size: 32px;
             font-weight: bold;
             color: #0066cc;
             text-align: center;
-            margin: 20px 0;
+            margin: 15px 0 10px 0;
+        }
+        /* ヒントエリアのアコーディオン */
+        .hint-container {
+            margin: 10px 0 20px 0;
+            background-color: #fff8e1;
+            border: 1px solid #ffe082;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .hint-container summary {
+            padding: 10px 14px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #f57f17;
+            cursor: pointer;
+            user-select: none;
+            outline: none;
+        }
+        .hint-text {
+            padding: 10px 14px;
+            font-size: 14px;
+            color: #555;
+            border-top: 1px dashed #ffe082;
+            line-height: 1.5;
+            background-color: #fffde7;
         }
         .btn {
             display: block;
@@ -79,12 +104,8 @@
             font-weight: bold;
             margin: 15px 0;
         }
-        .correct {
-            color: #2e7d32;
-        }
-        .incorrect {
-            color: #c62828;
-        }
+        .correct { color: #2e7d32; }
+        .incorrect { color: #c62828; }
         .answer-detail {
             background: #f0f4f8;
             padding: 12px;
@@ -109,18 +130,9 @@
             user-select: none;
             outline: none;
         }
-        .wrong-words-details summary:hover {
-            background-color: #fff5f5;
-        }
-        .wrong-words-content {
-            padding: 0 20px 20px 20px;
-            border-top: 1px solid #eee;
-        }
-        .wrong-words-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
+        .wrong-words-details summary:hover { background-color: #fff5f5; }
+        .wrong-words-content { padding: 0 20px 20px 20px; border-top: 1px solid #eee; }
+        .wrong-words-list { list-style: none; padding: 0; margin: 0; }
         .wrong-words-item {
             display: flex;
             justify-content: space-between;
@@ -128,16 +140,9 @@
             padding: 10px 0;
             border-bottom: 1px solid #eee;
         }
-        .wrong-words-item:last-child {
-            border-bottom: none;
-        }
-        .wrong-word-name {
-            font-weight: bold;
-            color: #0066cc;
-        }
-        .wrong-word-meaning {
-            color: #555;
-        }
+        .wrong-words-item:last-child { border-bottom: none; }
+        .wrong-word-name { font-weight: bold; color: #0066cc; }
+        .wrong-word-meaning { color: #555; }
     </style>
 </head>
 <body>
@@ -157,12 +162,12 @@
 
     <script>
         const TOTAL_QUESTIONS = 5;
-        let allWords = [];       // 元の全単語データ
-        let currentQuizWords = []; // 今回のクイズで使用する単語リスト
+        let allWords = [];       
+        let currentQuizWords = []; 
         let currentIndex = 0;
         let score = 0;
         let currentChoices = []; 
-        let wrongWordsMap = new Map(); // 重複を防ぐためのMap（単語 -> 正しい意味）
+        let wrongWordsMap = new Map(); 
 
         async function loadTSV() {
             try {
@@ -173,7 +178,8 @@
                     return {
                         word: parts[0]?.trim(),
                         correct: parts[1]?.trim(),
-                        dummies: parts.slice(2, 5).map(d => d?.trim())
+                        dummies: parts.slice(2, 5).map(d => d?.trim()),
+                        hint: parts[5]?.trim() || '' // 6項目目をヒントとして取得
                     };
                 }).filter(w => w.word && w.correct && w.dummies.length === 3);
             } catch (e) {
@@ -189,7 +195,6 @@
                 alert('問題データが見つからないか、フォーマットが不正です。');
                 return;
             }
-            // 全データからランダムにセット
             currentQuizWords = [...allWords].sort(() => Math.random() - 0.5);
             currentIndex = 0;
             score = 0;
@@ -198,8 +203,6 @@
 
         function startWrongWordsQuiz() {
             if (wrongWordsMap.size === 0) return;
-
-            // 間違えた単語だけを抽出
             currentQuizWords = allWords.filter(w => wrongWordsMap.has(w.word));
             currentQuizWords.sort(() => Math.random() - 0.5);
             currentIndex = 0;
@@ -228,6 +231,15 @@
             let html = `<p style="text-align:right; color:#666;">第 ${currentIndex + 1} / ${total} 問</p>`;
             html += `<div class="word">${escapeHtml(current.word)}</div>`;
             
+            // ヒントが存在する場合のみアコーディオンを表示
+            if (current.hint) {
+                html += `
+                <details class="hint-container">
+                    <summary>💡 ヒントを見る</summary>
+                    <div class="hint-text">${escapeHtml(current.hint)}</div>
+                </details>`;
+            }
+
             currentChoices.forEach(choice => {
                 html += `<button class="btn" onclick="checkAnswer('${escapeJs(choice)}', '${escapeJs(current.correct)}')">${escapeHtml(choice)}</button>`;
             });
@@ -257,6 +269,10 @@
 
             html += `<div class="answer-detail">正解: <strong>${escapeHtml(correct)}</strong></div>`;
 
+            if (current.hint) {
+                html += `<p style="text-align:center; font-size:13px; color:#888;">💡 ヒント: ${escapeHtml(current.hint)}</p>`;
+            }
+
             html += `<button class="btn secondary-btn" onclick="showQuestion()">同じ問題をもう一度やる</button>`;
             html += `<button class="btn primary-btn" onclick="nextQuestion()">新しい問題をやる</button>`;
 
@@ -283,7 +299,6 @@
 
             container.style.display = 'block';
             details.removeAttribute('open');
-
             summary.textContent = `❌ 間違えた単語 (${wrongWordsMap.size}件)`;
 
             let html = '';
@@ -314,7 +329,6 @@
                 html += `<p style="text-align:center;">次回は全問正解を目指しましょう！</p>`;
             }
             
-            // 間違えた単語がある場合のみ「間違えた問題だけで再挑戦」ボタンを表示
             if (wrongWordsMap.size > 0) {
                 html += `<button class="btn danger-btn" onclick="startWrongWordsQuiz()">❌ 間違えた問題だけで再挑戦 (${wrongWordsMap.size}問)</button>`;
             }
